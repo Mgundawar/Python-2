@@ -1,11 +1,8 @@
-name: Claude Automated PR Review
+name: Claude PR Review
 
 on:
   pull_request:
     types: [opened, synchronize]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
 
 permissions:
   contents: read
@@ -14,106 +11,70 @@ permissions:
   id-token: write
 
 jobs:
-  claude-pr-review:
+  claude-review:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get PR Details
-        id: pr-info
+      - name: Get PR diff
+        id: diff
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
-            console.log(`PR #${pr.number}: ${pr.title}`);
-            console.log(`Author: ${pr.user.login}`);
-            console.log(`Changes: ${pr.additions} additions, ${pr.deletions} deletions`);
+            const { data: prData } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            console.log(`PR: ${prData.title}`);
+            console.log(`Files changed: ${files.length}`);
+            files.forEach(file => {
+              console.log(`  - ${file.filename} (+${file.additions}/-${file.deletions})`);
+            });
 
-      - name: Run Claude Code Review
-        id: claude-review
+      - name: Run Claude Review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            You are an expert code reviewer. Analyze this pull request and provide comprehensive feedback.
+            Please review this pull request thoroughly and provide detailed, actionable feedback.
             
-            **PR Information:**
-            - Title: ${{ github.event.pull_request.title }}
-            - Author: ${{ github.event.pull_request.user.login }}
-            - Description: ${{ github.event.pull_request.body }}
-            - Changed files: See the diff below
-            - Additions: ${{ github.event.pull_request.additions }}
-            - Deletions: ${{ github.event.pull_request.deletions }}
+            PR Title: "${{ github.event.pull_request.title }}"
+            PR Description: "${{ github.event.pull_request.body }}"
             
-            **Your Review Should Include:**
+            Focus your review on:
             
-            1. **Summary** (1-2 sentences of what the PR does)
+            1. **Security Issues** - Look for hardcoded secrets, SQL injection, authentication flaws, etc.
+            2. **Code Quality** - Check for poor naming, complex logic, dead code, etc.
+            3. **Best Practices** - Are design patterns and standards followed?
+            4. **Error Handling** - Is error handling sufficient?
+            5. **Performance** - Any performance concerns?
+            6. **Testing** - Are there tests? Is coverage adequate?
+            7. **Documentation** - Are changes documented?
             
-            2. **Code Quality** 
-               - Are there any code style issues?
-               - Do functions/classes follow best practices?
-               - Is the code readable and maintainable?
+            Provide SPECIFIC examples from the code with line references where possible.
             
-            3. **Potential Issues**
-               - Any bugs or edge cases?
-               - Security concerns?
-               - Performance issues?
-            
-            4. **Testing**
-               - Are there adequate tests?
-               - Are edge cases covered?
-            
-            5. **Documentation**
-               - Are changes documented?
-               - Are comments clear?
-            
-            6. **Suggestions**
-               - Specific improvements (if any)
-               - Reference best practices
-            
-            7. **Overall Assessment**
-               - ✅ Approve
-               - 👀 Request Changes
-               - 💭 Comment
-            
-            Format your review in markdown with clear sections. Be constructive and specific.
+            Format your response as a clear, structured review that will be helpful to the developer.
+            Be constructive and professional.
 
-      - name: Comment with Review
+      - name: Post review comment
         uses: actions/github-script@v7
         with:
           script: |
-            const comment = `## 🤖 Claude Code Review
-            
-            I've analyzed this pull request. Here's my detailed review:
-            
-            ### Summary
-            This PR contains changes to multiple files with **${{ github.event.pull_request.additions }}** additions and **${{ github.event.pull_request.deletions }}** deletions.
-            
-            ✅ **Review Status**: Completed
-            
-            Please review the feedback above and let me know if you'd like me to provide more details on any specific areas.
-            
-            ---
-            *Generated by Claude Code*`;
-            
             github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: comment
-            });
-
-      - name: Add Review Label
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              labels: ['claude-reviewed']
-            });
+              body: `## 🤖 Claude Code Review\n\nReview completed. Please see the analysis above for detailed feedback on code quality, security, and best practices.`
+            })
