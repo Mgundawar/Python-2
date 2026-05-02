@@ -1,5 +1,5 @@
 """
-User authentication module with intentional bugs for testing Claude PR review. Minor update
+User authentication module with intentional bugs for testing Claude PR review. Minor update 
 """
 
 import re
