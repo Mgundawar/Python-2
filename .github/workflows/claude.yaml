@@ -2,9 +2,9 @@ name: Claude Code
 
 on:
   issue_comment:
-    types: [created, edited]
+    types: [created]
   pull_request_review_comment:
-    types: [created, edited]
+    types: [created]
 
 permissions:
   contents: write
@@ -14,9 +14,7 @@ permissions:
 jobs:
   claude:
     runs-on: ubuntu-latest
-    if: |
-      contains(github.event.comment.body, '@claude') ||
-      contains(github.event.review_comment.body, '@claude')
+    if: contains(github.event.comment.body, '@claude')
     
     steps:
       - name: Checkout
@@ -26,6 +24,6 @@ jobs:
           fetch-depth: 0
 
       - name: Run Claude Code
-        uses: anthropic-ai/claude-github-action@v1
+        uses: anthropics/claude-code-action@v1
         with:
-          api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
