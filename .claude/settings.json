@@ -7,10 +7,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "gh pr create --fill --draft || true"
+            "command": "echo 'Hook fired at' > hook-test.txt && date >> hook-test.txt && gh pr create --fill --draft >> hook-test.txt 2>&1 || echo 'gh pr create failed' >> hook-test.txt"
           }
-        ],
-        "description": "Auto-create PR after any git push"
+        ]
       }
     ]
   }
